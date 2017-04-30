@@ -16,6 +16,40 @@ var history = {
 };
 var initialized = false;
 
+// INIT
+
+function init(ev){
+  var robot = ev.robot;
+  //robot.clone();
+  setupAllyIfRequired(robot);
+  initialized = true;
+}
+
+function setupAllyIfRequired(robot){
+  if(!history.allies[robot.id]){
+    history.allies[robot.id] = {
+      target: {
+        x: null,
+        y: null,
+        robotId: null,
+        time: null,
+        adjustmentDeg: null
+      },
+      cannon: 'searching',
+      markers: []
+    }
+  }
+}
+
+function setupEnemyIfRequired(robot){
+  if(!history.enemies[robot.id]){
+    history.enemies[robot.id] = {
+      markers: []
+    }
+  }
+}
+
+
 // TIME MONITORING & LOGGING
 
 function updateTime(ev){
@@ -41,13 +75,13 @@ function runLog(ev){
     console.log(JSON.stringify(history))
 
   }
-
 }
 
 function executeTick(ev){
   updateTime(ev);
   runLog(ev);
   handleCannonAction(ev);
+  handleTankMovement(ev);
   fire(ev);
 }
 
@@ -56,6 +90,11 @@ function handleCannonAction(ev){
   if(history.allies[robot.id] && history.allies[robot.id].cannon == 'searching'){
     cannonSearch(ev);
   }
+}
+
+function handleTankMovement(ev){
+  var robot = ev.robot;
+  robot.ahead(3)
 }
 
 // CANNON
@@ -71,8 +110,11 @@ function cannonSearch(ev){
 }
 
 function handleHasFired(ev){
+  var lastTargetTime = 30;
   var robot = ev.robot;
-  history.allies[robot.id].cannon = 'searching';
+  if(history.allies[robot.id].target.time < time - lastTargetTime){
+    history.allies[robot.id].cannon = 'searching';
+  }
 }
 
 
@@ -88,7 +130,7 @@ function getPredictedBearing(target){
 }
 
 function getPredictedSpeed(target){
-  console.log('GETTING PREDICTED SPEED')
+  console.log('..getting predicted speed...')
   var enemyHistory = getEnemyHistory(target);
   if (enemyHistory.length > 1){
     var marker1 = enemyHistory[enemyHistory.length - 1];
@@ -112,22 +154,22 @@ function getTargetAngle(robot, target){
 
 
 function isMoving(a, b){
-  console.log('CHECKING IF MOVING')
+  console.log('...checking if moving')
   var tolerance = 50;
   var changeX = (a.position.x - b.position.x)/(b.time - a.time);
   var changeY = (a.position.y - b.position.y)/(b.time - a.time);
   console.log('MOVEMENT ' + changeX + ', ' + changeY)
   if((changeX + changeY)*100 > tolerance){
-    console.log('Determined is moving')
+    console.log('determined is moving')
     return true;
   } else {
-    console.log('Determined is not moving')
+    console.log('determined is not moving')
     return false;
   }
 }
 
 function getNewPositionFromVector(target, bearing, distance){
-  console.log('GETTING NEW POSITION FROM VECTOR')
+  console.log('...getting new position from vector')
   var newPosition = {
     x: target.position.x + Math.cos(bearing) * distance,
     y: target.position.y + Math.sin(bearing) * distance
@@ -136,7 +178,7 @@ function getNewPositionFromVector(target, bearing, distance){
 }
 
 function getPositionUponCooldown(robot, target){
-  console.log('GETTING POSITION UPON COOLDOWN');
+  console.log('...getting enemy position upon cooldown...');
   var bearing = getPredictedBearing(target);
   var distance = getPredictedSpeed(target) * robot.gunCoolDownTime;
   var estimatedPos = getNewPositionFromVector(target, bearing, distance);
@@ -170,7 +212,18 @@ function targetEnemy(robot, target){
   history.allies[robot.id].cannon = 'targeting';
   var adjustmentDeg = robot.cannonAbsoluteAngle - aimpointAngle;
   console.log('ADJUSTMENT DEG: ' + adjustmentDeg)
+  var targetingSpecs = {
+    robotId: target.id,
+    position: estimatedPos,
+    adjustmentDeg: adjustmentDeg,
+    time: time
+  }
+  setTarget(robot, targetingSpecs);
   robot.rotateCannon(adjustmentAngle);
+}
+
+function setTarget(robot, specs){
+  history.allies[robot.id].target = specs;
 }
 
 
@@ -184,35 +237,6 @@ function isEnemy(robot){
   }
 }
 
-// INIT
-
-function init(ev){
-  var robot = ev.robot;
-  setupAllyIfRequired(robot);
-  initialized = true;
-}
-
-function setupAllyIfRequired(robot){
-  if(!history.allies[robot.id]){
-    history.allies[robot.id] = {
-      target: {
-        x: null,
-        y: null,
-        robotId: null
-      },
-      cannon: 'searching',
-      markers: []
-    }
-  }
-}
-
-function setupEnemyIfRequired(robot){
-  if(!history.enemies[robot.id]){
-    history.enemies[robot.id] = {
-      markers: []
-    }
-  }
-}
 
 
 // Root functions
